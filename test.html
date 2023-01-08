@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Testing Templating Engine…</title>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+    details {
+      border: thin solid black;
+    }
+    table {
+      border-collapse: collapse;
+    }
+    td, th {
+      border: thin dotted gray;
+    }
+    th {
+      background: lightgray;
+    }
+    td {
+      background: #fdf6e3; /* To match Solarized Light */
+    }
+    ins, del {
+      font-weight: bold;
+    }
+    summary::-webkit-details-marker {
+      padding-left: 5px;
+    }
+  </style>
+  <script>
+    /* Ensure all tests have run. */
+    var parsedEnd = false
+    function assertFinished() {
+      if (!parsedEnd) alert("Failed to run all tests & parse last chunk")
+    }
+  </script>
+</head>
+<body onload="assertFinished()">
+  <h1>Test Results</h1>
+
+  <h2>Canaries</h2>
+  <p>If these fail it means the test runner isn't working right.</p>
+
+{% test "Without Input" %}
+Beware of sirens!
+{% output %}
+Beware of sirens!
+{% endtest %}
+
+{% test "With Input" %}
+Beware of sirens!
+{% input %}
+{"foo": "bar", "answer": 42}
+{% output %}
+Beware of sirens!
+{% endtest %}
+
+{% test "Mismatch reporting" %} 
+  {% test "This should fail" %}
+    My name is Joe Smith
+  {% output %}
+    I am John Smith
+  {% endtest %}
+{% output %} 
+  <details>
+	<summary style='background: red;' title='FAILURE'>This should fail</summary>
+	<table>
+		<tr><th>Test Code</th><th>Test Input</th></tr>
+		<tr><td><pre>
+    My name is Joe Smith
+  </pre></td><td><pre></pre></td></tr>
+		<tr><th>Computed</th><th>Expected</th></tr>
+		<tr><td><pre>
+    <ins>My</ins> <ins>n</ins>am<ins>e is</ins> Jo<ins>e</ins> Smith
+  </pre></td><td><pre>
+    <del>I</del> am Jo<del>hn</del> Smith
+  </pre></td></tr>
+	</table>
+</details>
+{% endtest %}
+{% test "Syntax error reporting" %}
+  {% test "This should fail" %}
+    {% 404 %}
+  {% output %}
+    
+  {% endtest %}
+{% output %}
+  <details>
+	<summary style='background: yellow' title='ERROR'>This should fail</summary>
+	<h3>prosody_syntax_error-quark thrown :: While Parsing <code>{% 404 %}</code></h3>
+	<p>Unknown tag &apos;404&apos;</p>
+</details>
+{% endtest %}
+
+{% test "Failure reporting engine" %}
+{# Wikipedia example #}
+AGCAT - GAC = {{"AGCAT"|diff:"GAC"}}
+{# http://www.geeksforgeeks.org/dynamic-programming-set-4-longest-common-subsequence/ examples #}
+ABCDGH - AEDFHR = {{"ABCDGH"|diff:"AEDFHR"}}
+AGGTAB - GXTXAYB = {{"AGGTAB"|diff:"GXTXAYB"}}
+{% output %}
+
+AGCAT - GAC = &lt;-&gt;A&lt;/-&gt;G&lt;-&gt;C&lt;/-&gt;A&lt;-&gt;T&lt;/-&gt;	GA&lt;+&gt;C&lt;/+&gt;
+
+ABCDGH - AEDFHR = A&lt;-&gt;BC&lt;/-&gt;D&lt;-&gt;G&lt;/-&gt;H	A&lt;+&gt;E&lt;/+&gt;D&lt;+&gt;F&lt;/+&gt;H&lt;+&gt;R&lt;/+&gt;
+AGGTAB - GXTXAYB = &lt;-&gt;AG&lt;/-&gt;GTAB	G&lt;+&gt;X&lt;/+&gt;T&lt;+&gt;X&lt;/+&gt;A&lt;+&gt;Y&lt;/+&gt;B
+{% endtest %}
+
+{% test "Debugging tag" %}
+  {% debug %}
+{% input %}
+  {
+    "firstName": "John",
+    "lastName": "Smith",
+    "isAlive": true,
+    "age": 25,
+    "address": {
+      "streetAddress": "21 2nd Street",
+      "city": "New York",
+      "state": "NY",
+      "postalCode": "10021-3100"
+    },
+    "phoneNumbers": [
+      {
+        "type": "home",
+        "number": "212 555-1234"
+      },
+      {
+        "type": "office",
+        "number": "646 555-4567"
+      },
+      {
+        "type": "mobile",
+        "number": "123 456-7890"
+      }
+    ],
+    "children": [],
+    "spouse": null
+  }
+{% output %}
+  <dl><dt>firstName</dt><dd>John</dd>
+<dt>lastName</dt><dd>Smith</dd>
+<dt>isAlive</dt><dd>TRUE</dd>
+<dt>age</dt><dd>25</dd>
+<dt>address</dt><dd>{
+	streetAddress => 21 2nd Street
+	city => New York
+	state => NY
+	postalCode => 10021-3100}</dd>
+<dt>phoneNumbers</dt><dd>{
+	$0 => {
+		type => home
+		number => 212 555-1234}
+	$1 => {
+		type => office
+		number => 646 555-4567}
+	$2 => {
+		type => mobile
+		number => 123 456-7890}}</dd>
+<dt>children</dt><dd>{}</dd>
+<dt>spouse</dt><dd></dd>
+</dl>
+{% endtest %}
+
+  <h2>Syntax</h2>
+{% test "Plain variables" %}
+My first name is {{ first_name }}. My last name is {{ last_name }}.
+{% input %}{"first_name": "John", "last_name": "Doe"}{% output %}
+My first name is John. My last name is Doe.
+{% endtest %}
+
+{% test "Variable paths, data conversion, & messy syntax" %}
+{{firstName}} {{ lastName}} is {{ age }} years old.
+
+He lives at {{  	
+address.streetAddress }}
+{{	 address.city
+}}
+and can be called at {{ phoneNumbers.$0.number }}.
+{{ nonexisting }}{{ non.existing }}{{age.years}}{# Should output exactly nothing #}
+{% input %}
+{
+  "firstName": "John",
+  "lastName": "Smith",
+  "isAlive": true,
+  "age": 25,
+  "address": {
+    "streetAddress": "21 2nd Street",
+    "city": "New York",
+    "state": "NY",
+    "postalCode": "10021-3100"
+  },
+  "phoneNumbers": [
+    {
+      "type": "home",
+      "number": "212 555-1234"
+    },
+    {
+      "type": "office",
+      "number": "646 555-4567"
+    },
+    {
+      "type": "mobile",
+      "number": "123 456-7890"
+    }
+  ],
+  "children": [],
+  "spouse": null
+}
+{% output %}
+John Smith is 25 years old.
+
+He lives at 21 2nd Street
+New York
+and can be called at 212 555-1234.
+
+{% endtest %}
+{% test "Automatic escaping" %}
+{{ "<b>O</b><i>ddyssey</i>" }}
+{% output %}
+&lt;b&gt;O&lt;/b&gt;&lt;i&gt;ddyssey&lt;/i&gt;
+{% endtest %}
+
+  <h2>Major tags</h2>
+  <p>Many of these templates are based on those from the 
+    <a href="https://docs.djangoproject.com/en/1.10/intro/tutorial03/">
+      introduction to Django
+    </a>.
+  </p>
+{% test "{% if %}/{% else %} & {% for %} variant 1" %}
+  {% if latest_question_list %}
+      <ul>
+      {% for question in latest_question_list %}
+          <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+      {% endfor %}
+      </ul>
+  {% else %}
+      <p>No polls are available.</p>
+  {% endif %}
+{% input %}
+  {
+    "latest_question_list": [
+      {
+        "id": 0,
+        "question_text": "Star what?",
+        "choices": ["Star Wars", "StarTrek", "StarGate SG1", "StarGate Atlantis"]
+      },
+      {
+        "id": 1,
+        "question_text": "Doctor …",
+        "choices": ["Who", "William Bell", "Walter Bishop", "Strange",
+            "Strangelove", "Octopus"]
+      },
+      {
+        "id": 2,
+        "question_text": "Who's fictional?",
+        "choices": ["Danielle Fore", "Sir Tim Berners-Lee", "Spock",
+            "Kirby Ferguson", "Alan Turing", "Charles Babbage"]
+      }
+    ]
+  }
+{% output %}
+  
+      <ul>
+      
+          <li><a href="/polls/0/">Star what?</a></li>
+      
+          <li><a href="/polls/1/">Doctor …</a></li>
+      
+          <li><a href="/polls/2/">Who&apos;s fictional?</a></li>
+      
+      </ul>
+  
+{% endtest %}
+{% test "{% if %}/{% else %} & {% for %} variant 2" %}
+  {% if latest_question_list %}
+      <ul>
+      {% for question in latest_question_list %}
+          <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+      {% endfor %}
+      </ul>
+  {% else %}
+      <p>No polls are available.</p>
+  {% endif %}
+{% output %}
+  
+      <p>No polls are available.</p>
+  
+{% endtest %}
+
+{% test "{% for %}/{% empty %} variant 1" %}
+  <h1>{{ question.question_text }}</h1>
+  <form method="post" target="submit">
+  <ul>
+  {% for i choice in question.choices %}
+      <li><input type="radio" name="answer" value="{{i}}" />{{ choice }}</li>
+  {% empty %}
+      <li>No options</li>
+  {% endfor %}
+  </ul>
+  </form>
+{% input %}
+  {"question": {
+    "id": 0,
+    "question_text": "Star what?",
+    "choices": ["Star Wars", "StarTrek", "StarGate SG1", "StarGate Atlantis"]
+  }}
+{% output %}
+  <h1>Star what?</h1>
+  <form method="post" target="submit">
+  <ul>
+  
+      <li><input type="radio" name="answer" value="$0" />Star Wars</li>
+  
+      <li><input type="radio" name="answer" value="$1" />StarTrek</li>
+  
+      <li><input type="radio" name="answer" value="$2" />StarGate SG1</li>
+  
+      <li><input type="radio" name="answer" value="$3" />StarGate Atlantis</li>
+  
+  </ul>
+  </form>
+{% endtest %}
+{% test "{% for %}/{% empty %} variant 2" %}
+  <h1>{{ question.question_text }}</h1>
+  <form method="post" target="submit">
+  <ul>
+  {% for i choice in question.choices %}
+      <li><input type="radio" name="answer" value="{{i}}" />{{ choice }}</li>
+  {% empty %}
+      <li>No options</li>
+  {% endfor %}
+  </ul>
+  </form>
+{% input %}
+  {"question": {
+    "id": 1,
+    "question_text": "Doctor …",
+    "choices": ["Who", "William Bell", "Walter Bishop", "Strange",
+        "Strangelove", "Octopus"]
+  }}
+{% output %}
+  <h1>Doctor …</h1>
+  <form method="post" target="submit">
+  <ul>
+  
+      <li><input type="radio" name="answer" value="$0" />Who</li>
+  
+      <li><input type="radio" name="answer" value="$1" />William Bell</li>
+  
+      <li><input type="radio" name="answer" value="$2" />Walter Bishop</li>
+  
+      <li><input type="radio" name="answer" value="$3" />Strange</li>
+  
+      <li><input type="radio" name="answer" value="$4" />Strangelove</li>
+  
+      <li><input type="radio" name="answer" value="$5" />Octopus</li>
+  
+  </ul>
+  </form>
+{% endtest %}
+{% test "{% for %}/{% empty %} variant 3" %}
+  <h1>{{ question.question_text }}</h1>
+  <form method="post" target="submit">
+  <ul>
+  {% for i choice in question.choices %}
+      <li><input type="radio" name="answer" value="{{i}}" />{{ choice }}</li>
+  {% empty %}
+      <li>No options</li>
+  {% endfor %}
+  </ul>
+  </form>
+{% input %}
+  {"question": {
+    "id": 2,
+    "question_text": "Who's fictional?",
+    "choices": ["Danielle Fore", "Sir Tim Berners-Lee", "Spock", "Kirby Ferguson",
+        "Alan Turing", "Charles Babbage"]
+  }}
+{% output %}
+  <h1>Who&apos;s fictional?</h1>
+  <form method="post" target="submit">
+  <ul>
+  
+      <li><input type="radio" name="answer" value="$0" />Danielle Fore</li>
+  
+      <li><input type="radio" name="answer" value="$1" />Sir Tim Berners-Lee</li>
+  
+      <li><input type="radio" name="answer" value="$2" />Spock</li>
+  
+      <li><input type="radio" name="answer" value="$3" />Kirby Ferguson</li>
+  
+      <li><input type="radio" name="answer" value="$4" />Alan Turing</li>
+  
+      <li><input type="radio" name="answer" value="$5" />Charles Babbage</li>
+  
+  </ul>
+  </form>
+{% endtest %}
+{% test "{% for %}/{% empty %} variant 4" %}
+  <h1>{{ question.question_text }}</h1>
+  <form method="post" target="submit">
+  <ul>
+  {% for i choice in question.choices %}
+      <li><input type="radio" name="answer" value="{{i}}" />{{ choice.choice_text }}</li>
+  {% empty %}
+      <li>No options</li>
+  {% endfor %}
+  </ul>
+  </form>
+{% input %}
+  {"question": {
+    "id": 404,
+    "question_text": "Do you like Prosody?",
+    "choices": []
+  }}
+{% output %}
+  <h1>Do you like Prosody?</h1>
+  <form method="post" target="submit">
+  <ul>
+  
+      <li>No options</li>
+  
+  </ul>
+  </form>
+{% endtest %}
+
+  <h2>Extended Tag set</h2>
+{% test "{% autoescape %}" %}
+<h2>{{ header }}</h2>
+<script>{% autoescape js-string %}
+  var test = "{{ body }}";
+{% autoescape end %}</script>
+{% input %}
+{
+  "header": "The <strong>O</strong><em>ddessy</em> &amp; The Illiad",
+  "body": "\r\n\tBy '\"Homer\"'"
+}
+{% output %}
+<h2>The &lt;strong&gt;O&lt;/strong&gt;&lt;em&gt;ddessy&lt;/em&gt; &amp;amp; The Illiad</h2>
+<script>
+  var test = "\u000D\u000A\u0009By \u0027\u0022Homer\u0022\u0027";
+</script>
+{% endtest %}
+
+{% test "{% filter %}, |force-escape, |lower" %}
+{% filter force-escape:"html"|lower %}
+    This text will be <STRONG>HTML</STRONG>-<EM>escaped</EM>, and will appear in all lowercase.
+{% endfilter %}
+{% output %}
+
+    this text will be &lt;strong&gt;html&lt;/strong&gt;-&lt;em&gt;escaped&lt;/em&gt;, and will appear in all lowercase.
+
+{% endtest %}
+
+{% test "{% for %} over a range" %}
+  {% for i in 4|add:2 %}{{i}}{% endfor %}
+{% output %}
+  012345
+{% endtest %}
+
+{% test "{% if %}/{% else %} basics" %}
+  {% if nonempty %}y{% else %}n{% endif %}
+  {% if empty %}y{% else %}n{% endif %}
+  {% if null %}y{% else %}n{% endif %}
+{% input %}
+  {"nonempty": "This, here", "empty": "", "null": null}
+{% output %}
+  y
+  n
+  n
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% else %}
+    Nothing's on.
+{% endif %}
+{% input %}
+{
+  "now_playing": ["Spiderman 2", "Hellboy", "Moon", "Source Code",
+        "Terms And Conditions May Apply", "Elephant's Dream"],
+  "coming_soon": ["Thor Ragnorak", "Lord of the Rings", "2001: A Space Oddyssey",
+        "The Internet's Own Boy", "Cosmos Laundromat"]
+}
+{% output %}
+
+    6 movies now playing!
+
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% else %}
+    Nothing's on.
+{% endif %}
+{% input %}
+{
+  "now_playing": [],
+  "coming_soon": ["Thor Ragnorak", "Lord of the Rings", "2001: A Space Oddyssey",
+        "The Internet's Own Boy", "Cosmos Laundromat"]
+}
+{% output %}
+
+    Just be a little patient
+
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% else %}
+    Nothing's on.
+{% endif %}
+{% input %}
+{
+  "now_playing": [],
+  "coming_soon": []
+}
+{% output %}
+
+    Nothing's on.
+
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% endif %}
+{% input %}
+{
+  "now_playing": ["Spiderman 2", "Hellboy", "Moon", "Source Code",
+        "Terms And Conditions May Apply", "Elephant's Dream"],
+  "coming_soon": ["Thor Ragnorak", "Lord of the Rings", "2001: A Space Oddyssey",
+        "The Internet's Own Boy", "Cosmos Laundromat"]
+}
+{% output %}
+
+    6 movies now playing!
+
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% endif %}
+{% input %}
+{
+  "now_playing": [],
+  "coming_soon": ["Thor Ragnorak", "Lord of the Rings", "2001: A Space Oddyssey",
+        "The Internet's Own Boy", "Cosmos Laundromat"]
+}
+{% output %}
+
+    Just be a little patient
+
+{% endtest %}
+{% test "{% if %}/{% elif %}/{% else %} variant 1" %}
+{% if now_playing %}
+    {{ now_playing|length }} movies now playing!
+{% elif coming_soon %}
+    Just be a little patient
+{% endif %}
+{% input %}
+{
+  "now_playing": [],
+  "coming_soon": []
+}
+{% output %}
+
+{% endtest %}
+
+{% test "{% if %}'s and operator" %}
+{% if true and true %}✓{% endif %}
+{% if true and false %}✓{% endif %}
+{% if false and true %}✓{% endif %}
+{% if false and false %}✓{% endif %}
+{% input %}
+{"true": true, "false": false}
+{% output %}
+✓
+
+
+
+{% endtest %}
+{% test "{% if %}'s or operator" %}
+{% if true or true %}✓{% endif %}
+{% if true or false %}✓{% endif %}
+{% if false or true %}✓{% endif %}
+{% if false or false %}✓{% endif %}
+{% input %}
+{"true": true, "false": false}
+{% output %}
+✓
+✓
+✓
+
+{% endtest %}
+{% test "{% if %}'s not operator" %}
+{% if not true %}✓{% endif %}
+{% if not false %}✓{% endif %}
+{% input %}
+{"true": true, "false": false}
+{% output %}
+
+✓
+{% endtest %}
+{% test "{% if %}'s < operator" %}
+{% if 42 < 54 %}✓{% endif %}
+{% if 54 < 42 %}✓{% endif %}
+{% if 42 < 42 %}✓{% endif %}
+{% if 42 not < 54 %}✓{% endif %}
+{% if 54 not < 42 %}✓{% endif %}
+{% if 42 not < 42 %}✓{% endif %}
+{% output %}
+✓
+
+
+
+✓
+✓
+{% endtest %}
+{% test "{% if %}'s <= operator" %}
+{% if 42 <= 54 %}✓{% endif %}
+{% if 54 <= 42 %}✓{% endif %}
+{% if 42 <= 42 %}✓{% endif %}
+{% if 42 not <= 54 %}✓{% endif %}
+{% if 54 not <= 42 %}✓{% endif %}
+{% if 42 not <= 42 %}✓{% endif %}
+{% output %}
+✓
+
+✓
+
+✓
+
+{% endtest %}
+{% test "{% if %}'s > operator" %}
+{% if 42 > 54 %}✓{% endif %}
+{% if 54 > 42 %}✓{% endif %}
+{% if 42 > 42 %}✓{% endif %}
+{% if 42 not > 54 %}✓{% endif %}
+{% if 54 not > 42 %}✓{% endif %}
+{% if 42 not > 42 %}✓{% endif %}
+{% output %}
+
+✓
+
+✓
+
+✓
+{% endtest %}
+{% test "{% if %}'s >= operator" %}
+{% if 42 >= 54 %}✓{% endif %}
+{% if 54 >= 42 %}✓{% endif %}
+{% if 42 >= 42 %}✓{% endif %}
+{% if 42 not >= 54 %}✓{% endif %}
+{% if 54 not >= 42 %}✓{% endif %}
+{% if 42 not >= 42 %}✓{% endif %}
+{% output %}
+
+✓
+✓
+✓
+
+
+{% endtest %}
+{% test "{% if %}'s == operator" %}
+{% if 42 == 54 %}✓{% endif %}
+{% if 54 == 42 %}✓{% endif %}
+{% if 42 == 42 %}✓{% endif %}
+{% if 42 not == 54 %}✓{% endif %}
+{% if 54 not == 42 %}✓{% endif %}
+{% if 42 not == 42 %}✓{% endif %}
+{% output %}
+
+
+✓
+✓
+✓
+
+{% endtest %}
+{% test "{% if %}'s != operator" %}
+{% if 42 != 54 %}✓{% endif %}
+{% if 54 != 42 %}✓{% endif %}
+{% if 42 != 42 %}✓{% endif %}
+{% if 42 not != 54 %}✓{% endif %}
+{% if 54 not != 42 %}✓{% endif %}
+{% if 42 not != 42 %}✓{% endif %}
+{% output %}
+✓
+✓
+
+
+
+✓
+{% endtest %}
+
+{% test "{% if %}'s precedance" %}
+{% if (true or false) and false %}✓{% endif %}
+{% if true or false and false %}✓{% endif %}
+{% if false and 42 < 54 or true %}✓{% endif %}
+{% input %}
+{ "true": true, "false": false }
+{% output %}
+
+✓
+✓
+{% endtest %}
+
+{% test "{% ifchanged %}" %}
+{% for season in doctorwho %}
+  {% ifchanged season.doctor season.companion %}{% else %}<hr />{% endif %}
+  <p>
+  {% ifchanged season.doctor %}{{ season.doctor }}{% endif %}
+  {% ifchanged season.companion %}{{ season.companion }}{% endif %}
+  </p>
+{% endfor %}
+{% input %}
+{
+  "doctorwho": [
+    {"doctor": "Eccleston", "companion": "Tyler"},
+    {"doctor": "Tennant", "companion": "Tyler"},
+    {"doctor": "Tennant", "companion": "Jones"},
+    {"doctor": "Tennant", "companion": "Noble"},
+    {"doctor": "Smith", "companion": "Pond"},
+    {"doctor": "Smith", "companion": "Pond"},
+    {"doctor": "Smith", "companion": "Oswald"},
+    {"doctor": "Patraldi", "companion": "Oswald"},
+    {"doctor": "Patraldi", "companion": "Oswald"},
+    {"doctor": "Patraldi", "companion": "Nardole"}
+  ]
+}
+{% output %}
+
+  
+  <p>
+  Eccleston
+  Tyler
+  </p>
+
+  
+  <p>
+  Tennant
+  
+  </p>
+
+  
+  <p>
+  
+  Jones
+  </p>
+
+  
+  <p>
+  
+  Noble
+  </p>
+
+  
+  <p>
+  Smith
+  Pond
+  </p>
+
+  <hr />
+  <p>
+  
+  
+  </p>
+
+  
+  <p>
+  
+  Oswald
+  </p>
+
+  
+  <p>
+  Patraldi
+  
+  </p>
+
+  <hr />
+  <p>
+  
+  
+  </p>
+
+  
+  <p>
+  
+  Nardole
+  </p>
+
+{% endtest %}
+
+{% test "{% templatetag %}" %}
+{% templatetag openblock %}now ""{% templatetag closeblock %}
+{% templatetag openvariable %}now{% templatetag closevariable %}
+{% templatetag openbrace %}now{% templatetag closebrace %}
+{% templatetag opencomment %}now{% templatetag closecomment %}
+{% output %}
+{%now ""%}
+{{now}}
+{now}
+{#now#}
+{% endtest %}
+
+{% test "{% with %}" %}
+{% with answer=42 question="6 * 9" %}
+  {{ question }}  = {{ answer }}
+{% endwith %}
+{% output %}
+
+  6 * 9  = 42
+
+{% endtest %}
+
+  <h2>Filters</h2>
+{% test "|add" %}{{ 4|add:2 }} {{"4"|add:2}}{% output %}6 6{% endtest %}
+{% test "|capfirst" %}{{ "oDDitY"|capfirst }}{% output %}ODDitY{% endtest %}
+{% test "|cut" %}
+{{"Stanly Kubrik's 2001: A Space Oddyssey"|cut:" "}}
+{% output %}
+StanlyKubrik&apos;s2001:ASpaceOddyssey
+{% endtest %}
+{% test "|date" %}
+{{ 1487913154|date:"%e %B %Y %H:%M" }}
+{% output %}
+24 February 2017 18:12
+{% endtest %}
+{% test "|default" %}
+{{ undefined|default:"none" }}
+{{ true|default:"nothing" }}
+{{ 0|default:"nada" }}
+{{ 42|default:"none" }}
+{{ ""|default:"nothing" }}
+{{ "dr"|default:"nada" }}
+{% input %}
+{ "true": true, "false": false}
+{% output %}
+none
+TRUE
+nada
+42
+nothing
+dr
+{% endtest %}
+{% test "|escape" %}
+{{ "<b>O</b><i>ddyssey</i>"|safe|escape }}
+{% output %}
+&lt;b&gt;O&lt;/b&gt;&lt;i&gt;ddyssey&lt;/i&gt;
+{% endtest %}
+{% test "|filesize" %}
+{{ 8|filesize }}|{{2345|filesize }}
+{% output %}
+8 bytes|2.3 kB
+{% endtest %}
+{% test "|first" %}{{ "Oddyssey"|first }}{% output %}O{% endtest %}
+{% test "|last" %}{{ "Oddyssey"|last }}{% output %}y{% endtest %}
+{% test "join" %}
+{{ value|join:" // " }}
+{% input %}
+{ "value": "abc" }
+{% output %}
+a // b // c
+{% endtest %}
+{% test "|length" %}{{ "Oddyssey"|length }}{% output %}8{% endtest %}
+{% test "|lengthis" %}
+{{ "Oddyssey"|lengthis:8 }}|{{ "Oddyssey"|lengthis:3 }}
+{% output %}
+TRUE|FALSE
+{% endtest %}
+{% test "|lower" %}{{ "oDDitY"|lower }}{% output %}oddity{% endtest %}
+{% test "|safe" %}
+{{ "<b>O</b><i>ddyssey</i>"|safe }}
+{% output %}
+<b>O</b><i>ddyssey</i>
+{% endtest %}
+{% test "|title" %}{{ "oDDitY twiCE"|title }}{% output %}Oddity Twice{% endtest %}
+{% test "|split" %}
+{% for doctor in doctors|split:" " %}
+{{ doctor|title }}{% endfor %}
+{% input %}
+  {"doctors" : "hartnell troughton pertwee baker davison baker mccoy eccleston tennant smith capaldi whittaker"}
+{% output %}
+
+Hartnell
+Troughton
+Pertwee
+Baker
+Davison
+Baker
+Mccoy
+Eccleston
+Tennant
+Smith
+Capaldi
+Whittaker
+{% endtest %}
+
+  <h2>Tags & filters used by viewers</h2>
+  <p>Viewers make use of some addional extended tags. All of them are triggered
+    using an <code>include</code> tag. And the feed viewer needs these extra
+    facilities predominantly for filtering the results.</p>
+{% test "|base" %}
+  {{ "../a/b/c/"|base:"https://example.com/x/y/z" }}
+  {{ "../x/y/z"|base:"https://example.com/a/b/c/" }}
+{% output %}
+  https://example.com/x/a/b/c/
+  https://example.com/a/b/x/y/z
+{% endtest %}
+{% test "in operator" %}
+  {% if "matt smith" in doctors %}y{% else %}n{% endif %}
+  {% if DayOf_stars in doctors %}y{% else %}n{% endif %}
+  {% if TimeOf_stars in doctors %}y{% else %}n{% endif %}
+  {% if "christopher eccleston" in DayOf_stars %}y{% else %}n{% endif %}
+  {% if "matt smith" , "david tennant" in DayOf_stars %}y{% else %}n{% endif %}
+  {% if "matt smith" , "peter capaldi" in DayOf_stars %}y{% else %}n{% endif %}
+{% input %}{
+  "doctors" : ["christopher eccleston", "david tennant", "matt smith", "peter capaldi"],
+  "DayOf_stars" : ["matt smith", "david tennant", "john hurt"],
+  "TimeOf_stars" : ["matt smith", "peter capaldi"]
+}{% output %}
+  y
+  n
+  y
+  n
+  y
+  n
+{% endtest %}
+{% test "{% include %}" %}
+  {% with pong="boo!" %}{% include "include-" "test" %}{% endwith %}
+{% output %}
+  This is a template to test if it can be included using the `include` tag. Embedder said "boo!".
+
+{% endtest %}
+{% test "|uniqsort" %}
+  {% for c in data|uniqsort %}{{ c }}{% endfor %}
+{% input %}
+  { "data" : ["a","b","r","a","c","a","d","a","b","r","a"] }
+{% output %}
+  abcdr
+{% endtest %}
+{% test "|md5" %}
+  {{ "odysseus"|md5 }}
+{% output %}
+  6077c7b4d82a2025d1af5335b6a2d312
+{% endtest %}
+{% test "|lookup" %}
+  {% for item in data|lookup:"hello" %}{{ item }}{% endfor %}
+{% input %}
+  {
+    "data": {
+      "hello": {
+        "foo": "bar",
+        "hello": "world",
+        "sna": "fu"
+      },
+      "foo": [
+        {"hello": "foo"},
+        {"sna": "fu"}
+      ],
+      "bar": {
+        "hello": "bar",
+        "what": {
+          "hello": "baz"
+        }
+      }
+    }
+  }
+{% output %}
+  {
+	foo =&gt; bar
+	hello =&gt; world
+	sna =&gt; fu}worldfoobarbaz
+{% endtest %}
+{% test "|filter" %}
+  {% for book in data|filter:"price < 35" %}
+    {{ book.title }}
+  {% endfor %}
+{% input %}
+  {
+    "data": [
+      {"price": 30, "title": "Everyday Italian"},
+      {"price": 29.99, "title": "Harry Potter"},
+      {"price": 49.99, "title": "XQuery Kickstart"},
+      {"price": 39.95, "title": "Learning XML"}
+    ]
+  }
+{% output %}
+  
+    Everyday Italian
+  
+    Harry Potter
+  
+{% endtest %}
+
+  <h2>Data Sources</h2>
+  <p>The other tests used JSON as a datasource, but Prosody can parse others too. But they'll have to be integrated into the testrunner in order to be tested.</p>
+
+  <h3>XML</h3>
+  <p>At the moment this is being used to support webfeeds. And it's specifically geared towards aiding with that.</p>
+
+{% test "XML attribute paths, ignores namespaces" %}
+  {{ foo|join }}
+  {{ sna|join }}
+  {{ hello|join }}
+  {{ v|join }}
+  {{ alpha|join }}
+{% input xml %}
+  <data xmlns:a="https://example.com/a" xmlns:b="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" a:sna="fu" hello="world!" b:alpha="a">
+    <a:v>x</a:v>
+    <foo>bar</foo>
+    <b:v>y</b:v>
+    <a:hello>kitty</a:hello>
+    <v>z</v>
+    <b:alpha>b</b:alpha>
+    <alpha>c</alpha>
+  </data>
+{% output %}
+  bar
+  fu
+  world!
+  xyz
+  a
+{% endtest %}
+<p>Taken from <a href="https://www.w3schools.com/xml/xpath_examples.asp">W3Schools' tutorial</a>.</p>
+{% test "|lookup & |filter" %}
+  {{ bookstore|lookup:"title"|join:", " }}
+  {{ bookstore|lookup:"book"|first|lookup:"title"|join:", " }}
+  {{ bookstore|lookup:"price"|join:", " }}
+  {{ bookstore|lookup:"book"|filter:"price > 35"|lookup:"price"|join:", " }}
+  {{ bookstore|lookup:"book"|filter:"price > 35"|lookup:"title"|join:", " }}
+{% input xml %}
+<data><bookstore>
+
+<book category="cooking">
+  <title lang="en">Everyday Italian</title>
+  <author>Giada De Laurentiis</author>
+  <year>2005</year>
+  <price>30.00</price>
+</book>
+
+<book category="children">
+  <title lang="en">Harry Potter</title>
+  <author>J K. Rowling</author>
+  <year>2005</year>
+  <price>29.99</price>
+</book>
+
+<book category="web">
+  <title lang="en">XQuery Kick Start</title>
+  <author>James McGovern</author>
+  <author>Per Bothner</author>
+  <author>Kurt Cagle</author>
+  <author>James Linn</author>
+  <author>Vaidyanathan Nagarajan</author>
+  <year>2003</year>
+  <price>49.99</price>
+</book>
+
+<book category="web">
+  <title lang="en">Learning XML</title>
+  <author>Erik T. Ray</author>
+  <year>2003</year>
+  <price>39.95</price>
+</book>
+
+</bookstore></data>
+{% output %}
+  Everyday Italian, Harry Potter, XQuery Kick Start, Learning XML
+  Everyday Italian
+  30.00, 29.99, 49.99, 39.95
+  49.99, 39.95
+  XQuery Kick Start, Learning XML
+{% endtest %}
+{% test "|uniqsort" %}
+  {{ item|uniqsort|join }}
+{% input xml %}
+  <data>
+    <item>a</item>
+    <item><name>b</name></item>
+    <item name="c" />
+    <item name="d">e</item>
+    <item><name>f</name></item>
+    <item><name>g</name>h</item>
+  </data>
+{% output %}
+  abcdfg
+{% endtest %}
+{% test "XML localization" %}
+  {{ channel.post|join }}
+{% input xml %}
+  <data>
+    <channel xml:lang="cz">
+      <post>a</post>
+      <post xml:lang="fr">b</post>
+      <post xml:lang="en">c</post>
+    </channel>
+    <channel xml:lang="en">
+      <post xml:lang="cz">d</post>
+      <post xml:lang="en">e</post>
+      <post>ff</post>
+    </channel>
+  </data>
+{% output %}
+  eff
+{% endtest %}
+
+  <p>Please note the following tests requires data to be able to declare itself safe in HTML.</p>
+{% test "handling of type=xhtml" %}
+  {{ data }}
+  {{ data|text:"text" }}
+{% input xml %}
+  <root><data type="xhtml">
+    <h1>Success</h1>
+    <p>If the above's a header, this test has passed</p>
+  </data></root>
+{% output %}
+  
+    <h1>Success</h1>
+    <p>If the above's a header, this test has passed</p>
+  
+  
+    <h1>Success</h1>
+    <p>If the above's a header, this test has passed</p>
+  
+{% endtest %}
+{% test "handling of type=html" %}
+  {{ data }}
+  {{ data|text:"text" }}
+{% input xml %}
+  <root><data type="html">
+    &lt;h1>Success&lt;/h1>
+    &lt;p>If the above's a header, this test has passed&lt;/p>
+  </data></root>
+{% output %}
+  
+    <h1>Success</h1>
+    <p>If the above's a header, this test has passed</p>
+  
+  
+    <h1>Success</h1>
+    <p>If the above's a header, this test has passed</p>
+  
+{% endtest %}
+{% test "Can set fallback type=s to text coercion" %}
+  {{ data|text:"xhtml" }}
+  {{ data|text:"html" }}
+  {{ data|text:"text" }}
+{% input xml %}
+  <root><data>
+    <h1>Success</h1>
+    <p>If the above's a &lt;strong>header&lt;/strong>, this test has passed</p>
+  </data></root>
+{% output %}
+  
+    <h1>Success</h1>
+    <p>If the above's a &lt;strong&gt;header&lt;/strong&gt;, this test has passed</p>
+  
+  
+    Success
+    If the above's a <strong>header</strong>, this test has passed
+  
+  
+    Success
+    If the above&apos;s a &lt;strong&gt;header&lt;/strong&gt;, this test has passed
+  
+{% endtest %}
+  <p>What output this gives isn't really important,
+    as long as it does not allow malformed HTML, script tags, and style tags in.</p>
+{% test "HTML sanitization" %}
+  {{ test|join:"\n" }}
+{% input xml %}
+  <data>
+    <test type="html">&lt;script>alert("Failed!");&lt;/script></test>
+    <test type="html">&lt;style>body {background: red;}&lt;/style></test>
+    <test type="html">&lt;/details></test>
+  </data>
+{% output %}
+  &lt;script&gt;alert(&quot;Failed!&quot;);&lt;/script&gt;
+&lt;style&gt;body {background: red;}&lt;/style&gt;
+&lt;/details&gt;
+{% endtest %}
+
+
+  {% test-report %}
+  <script>parsedEnd = true</script>
+</body>
+</html>

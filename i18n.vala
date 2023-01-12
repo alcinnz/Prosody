@@ -49,13 +49,17 @@ namespace Prosody.xI18n {
 // So maintain a weak map to the translated templates from their source language.
 
 // Combine with the {% with %} tag, and that should get us everything we need.
+	private File? locales_dir = null;
+	public void set_i18n_dir(File src) {locales_dir = src; catalogue = null;}
+	private Bytes? catalogue = null;
     private Bytes load_catalogue() throws Error {
-        var basepath = "/io/github/alcinnz/Odysseus/page-l10n/";
+        if (catalogue != null) return catalogue;
+        if (locales_dir == null) throw new SyntaxError.OTHER("No catalogue directory found!");
 
         foreach (var lang in get_locales()) {
-            try {
-                return resources_lookup_data(basepath + lang, 0);
-            } catch (Error err) {continue;}
+            var file = locales_dir.get_child(lang);
+            if (!file.query_exists()) continue;
+            catalogue = file.load_bytes();
         }
 
         // If control flow reaches here, bail out!

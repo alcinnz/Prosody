@@ -77,4 +77,26 @@ namespace Prosody {
             write_head = write_head[source.length:write_head.length];
         }
     }
+
+    public class StreamWriter : Object, Writer {
+        OutputStream? inner;
+        public StreamWriter(OutputStream inner) {
+            this.inner = inner;
+        }
+
+        public async void write(Bytes text) {
+            if (inner == null) return;
+
+            size_t written = 0, end = text.length;
+            while (written != end) {
+                try {
+                    written += yield inner.write_bytes_async(text[written:end]);
+                } catch (Error e) {
+                    warning("Truncated template output: %s", e.message);
+                    this.inner = null;
+                    return;
+                }
+            }
+        }
+    }
 }
